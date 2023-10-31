@@ -6,6 +6,15 @@
 #include "spinlock.h"
 #include "proc.h"
 
+
+// Return the year in which 
+// UNIX version 6 was released
+uint64
+sys_getyear(void) 
+{
+  return 1975;
+}
+
 uint64
 sys_exit(void)
 {

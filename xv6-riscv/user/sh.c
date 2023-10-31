@@ -13,16 +13,19 @@
 
 #define MAXARGS 10
 
+// The base structure for all commands
 struct cmd {
   int type;
 };
 
+//Represents an executed command
 struct execcmd {
   int type;
   char *argv[MAXARGS];
   char *eargv[MAXARGS];
 };
 
+//Represents a command with I/O redirection 
 struct redircmd {
   int type;
   struct cmd *cmd;
@@ -32,18 +35,22 @@ struct redircmd {
   int fd;
 };
 
+//Represents a piped command 
 struct pipecmd {
   int type;
   struct cmd *left;
   struct cmd *right;
 };
 
+
+//Represents a lists of commands seperated by semicolons 
 struct listcmd {
   int type;
   struct cmd *left;
   struct cmd *right;
 };
 
+//Represents a background command
 struct backcmd {
   int type;
   struct cmd *cmd;
@@ -54,7 +61,12 @@ void panic(char*);
 struct cmd *parsecmd(char*);
 void runcmd(struct cmd*) __attribute__((noreturn));
 
+
 // Execute cmd.  Never returns.
+// The runcmd function takes a command and executes it
+// It supports various command types, such as executing a single command (EXEC)
+// I/O redirection (REDIR), piping commands (PIPE), executing lists of commands (LIST)
+// Also supports running commands in the background (BACK)
 void
 runcmd(struct cmd *cmd)
 {
@@ -142,6 +154,9 @@ getcmd(char *buf, int nbuf)
   return 0;
 }
 
+
+//The main function sets up a basic shell environment, including opening the console for input/output.
+//It enters a loop to read and execute commands. The supported commands include executing processes, handling 'cd', and managing background execution
 int
 main(void)
 {
@@ -263,6 +278,8 @@ backcmd(struct cmd *subcmd)
 char whitespace[] = " \t\r\n\v";
 char symbols[] = "<|>&;()";
 
+
+//split input into tokens based on whitespace and special characters 
 int
 gettoken(char **ps, char *es, char **q, char **eq)
 {
@@ -325,6 +342,9 @@ struct cmd *parsepipe(char**, char*);
 struct cmd *parseexec(char**, char*);
 struct cmd *nulterminate(struct cmd*);
 
+
+
+// function to parse an entire command line and creates a command structure based on the input
 struct cmd*
 parsecmd(char *s)
 {

@@ -26,8 +26,7 @@ fmtname(char *path)
   return buf;
 }
 
-/*the ls function takes a path as an argument, opens the path, and retrieves info about the file or directory using fstat
-based on the file type it prints different things
+/*based on the file type it prints different things
 1. device files and regular files 
  - it prints the name, type, inode number and size 
 
