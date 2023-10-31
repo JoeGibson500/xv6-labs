@@ -9,6 +9,8 @@ readLine(char buffer[], const int bufferSize)
     //constantly display command prompt
     write(2, ">>> ", 4);
 
+    // bufferPointer = buffer;
+
     //read input from user
     // bytesRead = read(0, p, 1);
     gets(buffer, bufferSize);
@@ -17,8 +19,23 @@ readLine(char buffer[], const int bufferSize)
     if (strlen(buffer) == 1)
     {
         write(2, "\n", 2);
-        readLine(buffer, bufferSize);
+        return 0;
     }
+
+    for (int i=0; i<bufferSize; i++)
+    {
+        if (buffer[i] == '\n')
+        {
+            //replace with null-terminating char, to indicate end of command/argument
+            buffer[i] = '\0';
+            return 1;
+
+        } else 
+        {
+            continue;
+        }
+    }
+
     return 1;
 }
 
@@ -29,15 +46,13 @@ formatLine(char *buffer, char *args[])
     int pid = fork();
     if (pid < 0)
     {
-        // fprintf("Fork failed");
+        printf("Fork failed");
         exit(1);
-    } else if(pid == 1)
+    } else if(pid == 0)
     {
         int wordstart = 1;
-
         char **argumentPointer, *bufferPointer;
 
-        //set argument pointer to the start of the argument array
         argumentPointer = &args[0];
 
         //set buffer pointer to start of buffer
@@ -45,15 +60,17 @@ formatLine(char *buffer, char *args[])
         while (*bufferPointer != '\0') {
             if (*bufferPointer != ' ') 
             {
-                // New word has started. Save the pointer to it to args.
-               
-
-                //assigns the address 'bufferPointer' to the pointer '*argumentPointer'
-                //this effectively stores the starting address of the new word in the 'args' array.
-                //it also sets wordstart to 0 to indicate that a word has begun  
-                *argumentPointer = bufferPointer;
-                wordstart = 0;
+                if (wordstart)
+                {
+                    // New word has started. Save the pointer to it to args.
                 
+
+                    //assigns the address 'bufferPointer' to the pointer '*argumentPointer'
+                    //this effectively stores the starting address of the new word in the 'args' array.
+                    //it also sets wordstart to 0 to indicate that a word has begun  
+                    *argumentPointer = bufferPointer;
+                    wordstart = 0;
+                }
             }   else 
             {
                 // A word in the line has ended since we met a space.
@@ -104,26 +121,15 @@ main(int argc, char *argv[])
 
     char* args[MAXARG] = { 0 };
 
-    char *p;
-    p = buffer;
-    
-    while (readLine(buffer, BUFSIZE))
+    while (1)
     {
-
-        for (int i=0; i<BUFSIZE; i++)
+        if (readLine(buffer, BUFSIZE) == 1)
         {
-            if (buffer[i] == '\n')
-            {
-                //replace with null-terminating char, to indicate end of command/argument
-                buffer[i] = '\0';
-            }
+            formatLine(buffer, args);
         }
-    
-        formatLine(buffer, args);
-        p = buffer;
 
-    p++;
     }
+
     if(buffer[0] == 'c' && buffer[1] == 'd' && buffer[2] == ' ')
     {
         char *path = buffer + 3; // skip cd and get the directory path
@@ -131,9 +137,5 @@ main(int argc, char *argv[])
  
     }
 
- 
-        
-
-    
     return 0;
 }
