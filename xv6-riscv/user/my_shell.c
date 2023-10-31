@@ -3,19 +3,24 @@
 #include "kernel/fcntl.h"
 #include "kernel/param.h"
 
+
+/*
+the function readLine will :
+    - print the command prompt
+    - read in user input 
+    - return 1 when 
+*/
 int
 readLine(char buffer[], const int bufferSize)
 {
     //constantly display command prompt
     write(2, ">>> ", 4);
 
-    // bufferPointer = buffer;
-
     //read input from user
-    // bytesRead = read(0, p, 1);
     gets(buffer, bufferSize);
 
 
+    //if the user just presses enter, exit function (this is so it is called again in the while loop so that the command prompt will be printed agaim)
     if (strlen(buffer) == 1)
     {
         write(2, "\n", 2);
@@ -30,13 +35,9 @@ readLine(char buffer[], const int bufferSize)
             buffer[i] = '\0';
             return 1;
 
-        } else 
-        {
-            continue;
         }
     }
-
-    return 1;
+    return 0;
 }
 
 void
@@ -116,15 +117,22 @@ cd(char *path)
 int 
 main(int argc, char *argv[]) 
 {
+
+    //create a buffer that we will read into and declare a constant size
     const int BUFSIZE = 512;
     char buffer[BUFSIZE];    
 
+    //initialize argument array that will store arguments after tokenized
+    //set all elements to null
     char* args[MAXARG] = { 0 };
 
+    //display command prompt indefinitely 
     while (1)
     {
+        //readLine will return 1 when it replaces the newline character with a null terminating character
         if (readLine(buffer, BUFSIZE) == 1)
         {
+
             formatLine(buffer, args);
         }
 
