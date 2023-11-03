@@ -3,7 +3,6 @@
 #include "kernel/fcntl.h"
 #include "kernel/param.h"
 
-
 /*
 the function readLine will :
     - print the command prompt
@@ -31,7 +30,8 @@ readLine(char buffer[], const int bufferSize)
     // if we read in a < or > and \n then checkRedirection will be equal to 1.
     // if we only read in a \n then status = 0
     // initialize to 0 for now
-    int checkRedirection = 0;
+    int checkLineStatus = 0;
+    
     
     
     // for loop to replace the newline character and replace it with a null-terminating character
@@ -40,7 +40,7 @@ readLine(char buffer[], const int bufferSize)
     {
         if(buffer[i] == '<' || buffer[i] == '>')
         {
-            checkRedirection = 1;
+            checkLineStatus = 1;
         }
 
         if (buffer[i] == '\n')
@@ -50,7 +50,7 @@ readLine(char buffer[], const int bufferSize)
             
         }
     }
-    return checkRedirection;
+    return checkLineStatus;
 }
 
 /*
@@ -83,14 +83,6 @@ separateRedirection(char *buffer, char *args[], char *redirectionFile , const in
         }  
     }
 
-
-
-    // // Skip leading spaces after < or >
-    // while (i < bufSize && buffer[i] == ' ') {
-    //     i++;
-    // }
-
-
     if (i < bufSize)
     {
         int j = 0;
@@ -121,6 +113,19 @@ the function will also handle redirection depending on the redirectionStatus. (R
     - by changing the values of file descriptors, we can manipulate input and output
     - file descriptors then have to be restored back to STDIN and STDOUT before we read our next line
 */
+// function to change directory
+int
+handlecd(char *args[])
+{
+    int dirCheck  = chdir(args[1]);
+    
+    if(dirCheck < 0)
+    {   
+        printf("cd error : exiting");
+        exit(1);
+    }
+    return 0;
+}
 
 void
 formatLine(char *buffer, char *args[], char *redirectionFile, int redirectionStatus)
@@ -219,10 +224,10 @@ formatLine(char *buffer, char *args[], char *redirectionFile, int redirectionSta
                 // this is done so we can restore it later  
                 int STDIN_fileDescriptor = dup(0);
 
-                // close the original STDIN file descriptor. this will now become free to use. 
                 close(0);
 
-                // duplicate our file that we have opened. because we closed file descriptor 0, this will be stored there as it is free. 
+                // close the original STDIN file descriptor. this will now become free to use. 
+                // close(0)strncmpcate our file that we have opened. because we closed file descriptor 0, this will be stored there as it is free. 
                 int result = dup(fileDescriptor);
 
                 // we can now close our old copy
@@ -277,8 +282,15 @@ formatLine(char *buffer, char *args[], char *redirectionFile, int redirectionSta
                     exit(1);
                 }
 
+                
                 // execute as normal. because we have changed STDOUT to our file, any output should go to our file now 
-                exec(args[0], args);
+                
+
+                if(exec(args[0], args) < 0)
+                {
+                    printf("Exec error : exiting\n");
+                    exit(1);
+                }
 
                 // now we can close our file descriptor as we need to restore STDOUT
                 close(1);
@@ -289,9 +301,16 @@ formatLine(char *buffer, char *args[], char *redirectionFile, int redirectionSta
             } 
         }
         else 
-        {
+        {   
+            char cd[] = "cd";
+            
+            if (strcmp(args[0], cd) == 0)
+            {
+                handlecd(args);
+            }
+            
             // execute commands 
-            if(exec(args[0], args) < 0)
+            else if(exec(args[0], args) < 0)
             {
                 printf("Exec error : exiting\n");
                 exit(1);
@@ -304,19 +323,7 @@ formatLine(char *buffer, char *args[], char *redirectionFile, int redirectionSta
     }    
 }
 
-
-// function to change directory
-void
-cd(char *path)
-{
-    if(chdir(path) < 0)
-    {   
-        printf("cd error : exiting");
-        exit(1);
-    }
-}
-
-//function to remove leading spaces from extracted fileName
+// function to remove leading spaces from extracted fileName
 void
 removeLeadingSpaces(char *file, char *newFile)
 {
@@ -337,9 +344,6 @@ removeLeadingSpaces(char *file, char *newFile)
     newFile[k] = '\0';  
 }
 
-
-
-
 int 
 main(int argc, char *argv[]) 
 {
@@ -352,6 +356,8 @@ main(int argc, char *argv[])
     {
         // create a buffer that we will read into and declare a constant size
         char buffer[BUFSIZE];    
+        char newBuffer[BUFSIZE];    
+
 
         // initialize argument array that will store arguments after tokenized
         // set all elements to null
@@ -373,28 +379,22 @@ main(int argc, char *argv[])
         int readLineStatus = 0;
         readLineStatus = readLine(buffer, BUFSIZE);
 
-        // special case for cd.
-        if(buffer[0] == 'c' && buffer[1] == 'd' && buffer[2] == ' ')
-        {
-            char *path = buffer + 3; // skip cd and get the directory path
-            cd(path);
+        removeLeadingSpaces(buffer, newBuffer);
  
-        }
-
         // redirection not needed, carry on as normal 
         if (readLineStatus == 0)
         {
-            formatLine(buffer, args, redirectionFile, redirectionStatus);
+            formatLine(newBuffer, args, redirectionFile, redirectionStatus);
            
         }
         //redirection needed, extract filename from buffer, remove leading spaces and then format the rest of the buffer ready for execution
         else if (readLineStatus == 1)
         {
-            int separatedRedirection = separateRedirection(buffer, args, redirectionFile, BUFSIZE, redirectionStatus);
+            int separatedRedirection = separateRedirection(newBuffer, args, redirectionFile, BUFSIZE, redirectionStatus);
 
             removeLeadingSpaces(redirectionFile, newRedirectionFile);
 
-            formatLine(buffer, args, newRedirectionFile, separatedRedirection);
+            formatLine(newBuffer, args, newRedirectionFile, separatedRedirection);
            
         }
         else 
