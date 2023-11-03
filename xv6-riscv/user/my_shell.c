@@ -13,102 +13,100 @@ the function readLine will :
 int
 readLine(char buffer[], const int bufferSize)
 {
-    //constantly display command prompt
+    // constantly display command prompt
     write(2, ">>> ", 4);
 
-    //read input from user
-    gets(buffer, bufferSize);
+    // read input from user
+    // gets(buffer, bufferSize);
+    read(0, buffer, bufferSize);
 
 
-    //if the user just presses enter, exit function (this is so it is called again in the while loop so that the command prompt will be printed agaim)
+    // if the user just presses enter, exit function (this is so it is called again in the while loop so that the command prompt will be printed agaim)
     if (strlen(buffer) == 1)
     {
         write(2, "\n", 2);
         return 0;
     }
 
-    //if we read in a < or > and \n then checkRedirection will be equal to 2.
-    //if we only read in a \n then status = 1
-    //initialize to 0 for now
+    // if we read in a < or > and \n then checkRedirection will be equal to 1.
+    // if we only read in a \n then status = 0
+    // initialize to 0 for now
     int checkRedirection = 0;
     
     
-    //for loop to replace the newline character and replace it with a null-terminating character
-    //once 1 has been returned, this is an indication to the main function that the line has been read and processed, so now it is ready to be formatted to execute
+    // for loop to replace the newline character and replace it with a null-terminating character
+    // once 1 has been returned, this is an indication to the main function that the line has been read and processed, so now it is ready to be formatted to execute
     for (int i=0; i<bufferSize; i++)
     {
         if(buffer[i] == '<' || buffer[i] == '>')
         {
-            checkRedirection += 1;
+            checkRedirection = 1;
         }
 
         if (buffer[i] == '\n')
         {
             buffer[i] = '\0';
-
-            checkRedirection += 1;
+            break;
             
         }
     }
     return checkRedirection;
 }
 
-void 
+/*
+the function separateRedirection will : 
+    - detect the presence of < or > .
+    - if < then set redirectionStatus to 1.
+    - if > then set to 2.
+    - 
+*/
+int
 separateRedirection(char *buffer, char *args[], char *redirectionFile , const int bufSize, int redirectionStatus)
 {
+    // iterate through buffer and when we reach the < or > characters we set the pointer to this index.
+    // replace < or > with null terminating character
 
-    redirectionFile[0] = '\0';
-
-    //  declare pointers to redirectionFile section
-    char *inputRedirection = buffer;
-    char *outputRedirection = buffer;
-
-    //iterate through buffer and when we reach the < or > characters we set the pointer to this index.
-    //replace < or > with null terminating character
-    for (int i=0; i<bufSize; i++)
+    int i;
+    for (i=0; i < bufSize; i++)
     {
-        if (buffer[i] == '<')
+        if (buffer[i] == ' ')
         {
-            inputRedirection = &buffer[i];
-            
-            *inputRedirection = '\0';
-
-        } else if (buffer[i] == '>')
+            continue;
+        }
+        
+        if (buffer[i] == '<' || buffer[i] == '>')
         {
-            outputRedirection = &buffer[i];
+            redirectionStatus = (buffer[i] == '<') ? 1 : 2;
+            buffer[i] = '\0';
+            break; // we have found the index where the < or > operators start, break from loop
 
-            *outputRedirection = '\0';
-        } 
+        }  
     }
 
-    if (inputRedirection != &buffer[0] )
+
+
+    // // Skip leading spaces after < or >
+    // while (i < bufSize && buffer[i] == ' ') {
+    //     i++;
+    // }
+
+
+    if (i < bufSize)
     {
-        //extract the input filename 
-        //inputRedirection - buffer + 1 will set the index i to the space after the < or > operator
-        //we can then iterate after this storing whatever comes after in the redirectionFile array
         int j = 0;
-        for (int i = inputRedirection - buffer + 1; buffer[i] != '\0' && buffer[i] != ' '; i++, j++)
+        for (i++; i<bufSize && buffer[i] != '\0'; i++, j++)
         {
             redirectionFile[j] = buffer[i];
-            redirectionStatus = 1;
-
-        }
+        }     
+        redirectionFile[j] = '\0';
+    } else 
+    {
+        redirectionFile[0] = '\0';
+        redirectionStatus = 0;
     }
 
-     if (outputRedirection != &buffer[0])
-    {
-        //extract the output filename 
-        //outputRedirection - buffer + 1 will set the index i to the space after the < or > operator
-        //we can then iterate after this storing whatever comes after in the redirectionFile array
-        int j = 0;
-        for (int i = outputRedirection - buffer + 1; buffer[i] != '\0' && buffer[i] != ' '; i++, j++)
-        {
-            redirectionFile[j] = buffer[i];
-            redirectionStatus = 2;
-        }
-    }   
+    return redirectionStatus;
 }
-
 
 /*
 
@@ -117,15 +115,21 @@ this function formatLine will:
     - separate the buffer into seperate strings 
     - store these strings in the argument array 
     - execute the command with its arguments
+
+the function will also handle redirection depending on the redirectionStatus. (Remember if 0, then no redirection. If 1, then we need to handle < . If 2, we need to handle > . )
+    - the function handles redirectioin using the dup() function
+    - by changing the values of file descriptors, we can manipulate input and output
+    - file descriptors then have to be restored back to STDIN and STDOUT before we read our next line
 */
+
 void
 formatLine(char *buffer, char *args[], char *redirectionFile, int redirectionStatus)
 {
 
-    //create a new process 
+    // create a new process 
     int pid = fork();
 
-    //verify fork has worked
+    // verify fork has worked
     if (pid < 0)
     {
         printf("Fork failed");
@@ -133,20 +137,20 @@ formatLine(char *buffer, char *args[], char *redirectionFile, int redirectionSta
 
     } else if(pid == 0) // verify that we are in the child process
     {
-        //wordstart is a variable that we will use to indicate the beginning and end of a word
-        //when we meet the first letter of the word, worstart = 0.
-        //when we meet the first blankspace after the word, wordstart = 1
-        //repeat with next word
+        // wordstart is a variable that we will use to indicate the beginning and end of a word
+        // when we meet the first letter of the word, worstart = 0.
+        // when we meet the first blankspace after the word, wordstart = 1
+        // repeat with next word
         int wordstart = 1;
 
-        //pointers we will use to traverse the buffer and argument arrays.
+        // pointers we will use to traverse the buffer and argument arrays.
         char **argumentPointer, *bufferPointer;
 
 
-        //set argument pointer to start of argument array
+        // set argument pointer to start of argument array
         argumentPointer = &args[0];
 
-        //set buffer pointer to start of buffer array 
+        // set buffer pointer to start of buffer array 
         bufferPointer = buffer;
 
         /*
@@ -166,13 +170,14 @@ formatLine(char *buffer, char *args[], char *redirectionFile, int redirectionSta
 
         Finally, at the end of the loop we should increment bufferPointer. Once we reach a null-terminating character, we should break out the loop and use exec to run our command 
         */
+
         while (*bufferPointer != '\0') {
             if (*bufferPointer != ' ') 
             {
                 if (wordstart)
                 {
                 
-                    // ***** SECTION 1 *****//
+                    // ***** SECTION 1 ***** //
 
                     *argumentPointer = bufferPointer;
                     wordstart = 0;
@@ -182,7 +187,7 @@ formatLine(char *buffer, char *args[], char *redirectionFile, int redirectionSta
                 if (!wordstart) 
                 {
 
-                    //***** SECTION 2 *****//
+                    // ***** SECTION 2 ***** //
 
                     *bufferPointer = '\0';
 
@@ -195,110 +200,208 @@ formatLine(char *buffer, char *args[], char *redirectionFile, int redirectionSta
         bufferPointer++;
         }
 
-        if(redirectionFile[0] != '\0')
+        // redirection handling
+        if (redirectionStatus > 0)
         {
+        
             if (redirectionStatus == 1)
             {
-                //open redirection file in read only mode
-                int fd = open(redirectionFile, O_RDONLY);
-                //verify we have read in correctly
-                if (fd == -1)
+                // open redirection file in read only mode. this will be stored in next avaliable fd.
+                int fileDescriptor = open(redirectionFile, O_RDONLY);
+
+                if (fileDescriptor == -1)
                 {
-                printf("file open error : exiting");
-                exit(1);
+                    printf("File open error : exiting");
+                    exit(1);
+                } 
+
+                // duplicate the standard input file descriptor. this will be stored in the next avaliable fd.
+                // this is done so we can restore it later  
+                int STDIN_fileDescriptor = dup(0);
+
+                // close the original STDIN file descriptor. this will now become free to use. 
+                close(0);
+
+                // duplicate our file that we have opened. because we closed file descriptor 0, this will be stored there as it is free. 
+                int result = dup(fileDescriptor);
+
+                // we can now close our old copy
+                close(fileDescriptor);
+
+                // verify dup worked
+                if (result < 0)
+                {
+                    printf("Dup error : exiting");
+                    exit(1);
                 }
 
+                // execute as normal. because we have changed STDIN to our file, any input should come from out file now 
+                exec(args[0], args);
 
-                // ***************CHANGE TO DUP******************
-                //set file descriptor 1 to be our redirectionFile instead of STDIN
-                dup2(fd,0);
+                // now we can close our file descriptor as we need to restore STDIN
+                close(0);
 
-
-                //close original file descriptor as no longer needed
-                close(fd);
-
-       
-            } else if (redirectionStatus == 2)
+                // file descriptor 0 is free, so now lets dup our copy that we saved earlier and it will store it in fd 0. we can then close our copy.
+                dup(STDIN_fileDescriptor);
+                close(STDIN_fileDescriptor);
+            
+            }
+            else if (redirectionStatus == 2)
             {
-                //open redirection file in write mode, if the file does not exist it should create it, if the file exists, it size should be truncated to zero
-                //0644 = specifies file permissions for newly created file.
-
-                int fd = open(redirectionFile, O_WRONLY | O_CREATE | O_TRUNC);
-                //verify we have read in correctly
-                if (fd == -1)
+                 // open redirection file in required modes. this will be stored in next avaliable fd.
+                int fileDescriptor = open(redirectionFile, O_WRONLY | O_CREATE | O_TRUNC); 
+                
+                if (fileDescriptor == -1)
                 {
-                printf("file open error : exiting");
-                exit(1);
+                    printf("File open error : exiting");
+                    exit(1);
                 }
 
-                //set file descriptor 1 to be our redirectionFile instead of STDIN
-                dup2(fd, 1);
-                //close original file descriptor as no longer needed
-                close(fd);
+                // duplicate the standard output file descriptor. this will be stored in the next avaliable fd.
+                // this is done so we can restore it later
+                int STDOUT_fileDescriptor = dup(1);
+
+                // close the original STDOUT file descriptor. this will now become free to use. 
+                close(1);
+
+                // duplicate our file that we have opened. because we closed file descriptor 1, this will be stored there as it is free. 
+                int result = dup(fileDescriptor);
+
+                //close our old copy
+                close(fileDescriptor);
+
+                // verify dup worled
+                if (result < 0)
+                {
+                    printf("Dup error : exiting");
+                    exit(1);
+                }
+
+                // execute as normal. because we have changed STDOUT to our file, any output should go to our file now 
+                exec(args[0], args);
+
+                // now we can close our file descriptor as we need to restore STDOUT
+                close(1);
+
+                // file descriptor 1 is free, so now lets dup our copy that we saved earlier and it will store it in fd 1. we can then close our copy.
+                dup(STDOUT_fileDescriptor);
+                close(STDOUT_fileDescriptor);
             } 
-        } 
+        }
+        else 
+        {
+            // execute commands 
+            if(exec(args[0], args) < 0)
+            {
+                printf("Exec error : exiting\n");
+                exit(1);
+            }
+        }      
 
-
-        //execute commands 
-        exec(args[0], args);
-        
-
-    } else //parent waits for child
+    } else // parent waits for child
+    {
         wait(0);
+    }    
 }
 
-//function to change directory
+
+// function to change directory
 void
 cd(char *path)
 {
     if(chdir(path) < 0)
-    {       // At this point args stores pointers to the original
-        // command passed to xargs plus pointers to any inputs from
-        // the standard input. Execute the command.
+    {   
+        printf("cd error : exiting");
+        exit(1);
     }
 }
+
+//function to remove leading spaces from extracted fileName
+void
+removeLeadingSpaces(char *file, char *newFile)
+{
+    int i = 0;
+
+    while (file[i] == ' ' || file[i] == '\t' || file[i] == '\n')
+    {
+        i++;
+    }
+
+    int k = 0;
+
+    for(int j = i; file[j] != '\0'; j++)
+    {
+        newFile[k] = file[j];
+        k++;
+    }
+    newFile[k] = '\0';  
+}
+
+
+
+
 int 
 main(int argc, char *argv[]) 
 {
-
-    //create a buffer that we will read into and declare a constant size
+    // declare constant variables outside of loop 
     const int BUFSIZE = 512;
-    char buffer[BUFSIZE];    
 
-    //initialize argument array that will store arguments after tokenized
-    //set all elements to null
-    char* args[MAXARG] = { 0 };
 
-    //create array to store any redirection files into if any.
-    char redirectionFile[512] = { 0 };
-    int redirectionStatus = 0;
-
-    //display command prompt indefinitely 
+    // display command prompt indefinitely 
     while (1)
     {
-        //readLine will return 1 when it replaces the newline character with a null terminating character
-        //once this is done, it means that the line read is now ready to be formatted to execute #
-        //readLine will return 2 when it replaces \n AND it has a < or > operator 
-        if (readLine(buffer, BUFSIZE) == 1)
+        // create a buffer that we will read into and declare a constant size
+        char buffer[BUFSIZE];    
+
+        // initialize argument array that will store arguments after tokenized
+        // set all elements to null
+        char* args[MAXARG] = { 0 };
+
+        // create array to store any redirection files into if any.
+        char redirectionFile[512] = { 0 };
+        
+        // create another array which will be used to store the redirection file with no leading spaces 
+        char newRedirectionFile[512] = { 0 };
+
+        // redirections status used to tell us if we need to redirect or not
+        int redirectionStatus = 0;
+        
+        
+        // readLine will return 1 when it replaces the newline character with a null terminating character
+        // once this is done, it means that the line read is now ready to be formatted to execute #
+        // readLine will return 2 when it replaces \n AND it has a < or > operator 
+        int readLineStatus = 0;
+        readLineStatus = readLine(buffer, BUFSIZE);
+
+        // special case for cd.
+        if(buffer[0] == 'c' && buffer[1] == 'd' && buffer[2] == ' ')
         {
-            formatLine(buffer, args, redirectionFile, redirectionStatus);
-        }
-        else if (readLine(buffer, BUFSIZE) == 2)
-        {
-
-            separateRedirection(buffer, args, redirectionFile, BUFSIZE, redirectionStatus);
-            formatLine(buffer, args, redirectionFile, redirectionStatus);
-        }
-
-    }
-
-    //special case for cd.
-    if(buffer[0] == 'c' && buffer[1] == 'd' && buffer[2] == ' ')
-    {
-        char *path = buffer + 3; // skip cd and get the directory path
-        cd(path);
+            char *path = buffer + 3; // skip cd and get the directory path
+            cd(path);
  
-    }
+        }
 
+        // redirection not needed, carry on as normal 
+        if (readLineStatus == 0)
+        {
+            formatLine(buffer, args, redirectionFile, redirectionStatus);
+           
+        }
+        //redirection needed, extract filename from buffer, remove leading spaces and then format the rest of the buffer ready for execution
+        else if (readLineStatus == 1)
+        {
+            int separatedRedirection = separateRedirection(buffer, args, redirectionFile, BUFSIZE, redirectionStatus);
+
+            removeLeadingSpaces(redirectionFile, newRedirectionFile);
+
+            formatLine(buffer, args, newRedirectionFile, separatedRedirection);
+           
+        }
+        else 
+        {
+            printf("readLine error");
+        }
+
+    }
     return 0;
 }
